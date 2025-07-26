@@ -1,0 +1,11 @@
+streamlit
+pillow
+speechrecognition
+pyttsx3
+googletrans==4.0.0-rc1
+openai
+pandas
+requests
+pyaudio  # For microphone access
+sqlite3
+email_validator
