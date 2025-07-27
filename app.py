@@ -1,50 +1,3 @@
-"""
-FARMDEPOT_NG - AI-Powered Agricultural Classified Ads Web Application
-
-INSTALLATION REQUIREMENTS:
-==========================
-
-Basic Installation (Required):
-pip install streamlit sqlite3 pillow pandas
-
-Voice Recognition (Optional but recommended):
-pip install speechrecognition pyaudio pyttsx3 gtts
-
-Google Translate (Optional):
-pip install googletrans==4.0.0-rc1
-
-OpenAI Integration (Optional):
-pip install openai
-
-WINDOWS USERS - For PyAudio installation issues:
-1. Download PyAudio wheel from: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio
-2. Install with: pip install PyAudio-0.2.11-cp3xx-cp3xx-win_amd64.whl
-3. Or use: pip install pipwin && pipwin install pyaudio
-
-UBUNTU/LINUX USERS:
-sudo apt-get install portaudio19-dev python3-pyaudio
-pip install pyaudio
-
-MACOS USERS:
-brew install portaudio
-pip install pyaudio
-
-USAGE:
-======
-1. Save this file as app.py
-2. Install required packages
-3. Run: streamlit run app.py
-4. Open browser to: http://localhost:8501
-
-FEATURES:
-=========
-- Voice-powered posting and searching
-- Multi-language support (English, Hausa, Yoruba, Igbo)
-- User authentication and registration
-- Image upload for products
-- Real-time search and filtering
-- Responsive design for all devices
-"""
 
 import streamlit as st
 import sqlite3
@@ -56,12 +9,6 @@ from PIL import Image
 import io
 import json
 import pandas as pd
-import logging
-import tempfile
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Page configuration
 st.set_page_config(
@@ -144,112 +91,6 @@ def hash_password(password):
     """Hash password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Voice Assistant Class
-class VoiceAssistant:
-    """Voice assistant for handling speech-to-text and text-to-speech operations"""
-    
-    def __init__(self):
-        self.available = self._check_availability()
-        if self.available:
-            try:
-                import speech_recognition as sr
-                from gtts import gTTS
-                self.recognizer = sr.Recognizer()
-                self.microphone = sr.Microphone()
-            except ImportError:
-                self.available = False
-    
-    def _check_availability(self):
-        """Check if voice recognition dependencies are available"""
-        try:
-            import speech_recognition as sr
-            import pyaudio
-            from gtts import gTTS
-            return True
-        except ImportError:
-            return False
-    
-    def listen_for_speech(self, timeout=5, phrase_time_limit=10):
-        """Listen for speech input and convert to text"""
-        if not self.available:
-            return "Voice recognition not available"
-        
-        try:
-            import speech_recognition as sr
-            
-            with self.microphone as source:
-                st.info("🎤 Listening... Please speak now!")
-                # Adjust for ambient noise
-                self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                # Listen for audio
-                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
-            
-            st.info("🔄 Processing speech...")
-            # Recognize speech using Google Speech Recognition
-            text = self.recognizer.recognize_google(audio)
-            st.success(f"✅ Recognized: '{text}'")
-            return text
-            
-        except Exception as e:
-            error_msg = f"Speech recognition error: {str(e)}"
-            st.error(f"❌ {error_msg}")
-            logger.error(error_msg)
-            return None
-    
-    def text_to_speech(self, text, language='en'):
-        """Convert text to speech audio"""
-        if not self.available:
-            st.warning("Text-to-speech not available")
-            return None
-        
-        try:
-            from gtts import gTTS
-            
-            tts = gTTS(text=text, lang=language, slow=False)
-            
-            # Save to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp_file:
-                tts.save(tmp_file.name)
-                
-                # Read the audio file
-                with open(tmp_file.name, 'rb') as audio_file:
-                    audio_bytes = audio_file.read()
-                
-                # Clean up temporary file
-                os.unlink(tmp_file.name)
-                
-            return audio_bytes
-            
-        except Exception as e:
-            st.error(f"❌ Error generating speech: {e}")
-            logger.error(f"TTS error: {e}")
-            return None
-
-def use_real_voice_recognition():
-    """Check if real voice recognition is available and working"""
-    try:
-        # Check if required packages are available
-        import speech_recognition as sr
-        import pyaudio
-        from gtts import gTTS
-        
-        # Test microphone access
-        recognizer = sr.Recognizer()
-        microphone = sr.Microphone()
-        
-        # Try to access microphone briefly
-        with microphone as source:
-            recognizer.adjust_for_ambient_noise(source, duration=0.5)
-        
-        return True
-        
-    except ImportError as e:
-        logger.warning(f"Voice recognition dependencies not available: {e}")
-        return False
-    except Exception as e:
-        logger.warning(f"Voice recognition not available: {e}")
-        return False
-
 # Voice Assistant Placeholder (simplified)
 def simulate_voice_recognition():
     """Simulate voice recognition for demo purposes"""
@@ -280,15 +121,7 @@ def parse_voice_ad_input(voice_text):
         'beans': ('Quality Beans', 'Grains'),
         'pepper': ('Fresh Pepper', 'Vegetables'),
         'onion': ('Fresh Onions', 'Vegetables'),
-        'cocoa': ('Cocoa Beans', 'Cash Crops'),
-        'corn': ('Fresh Corn', 'Cereals'),
-        'millet': ('Quality Millet', 'Grains'),
-        'sorghum': ('Sorghum Grains', 'Cereals'),
-        'cowpea': ('Cowpea Beans', 'Grains'),
-        'groundnut': ('Groundnuts', 'Cash Crops'),
-        'sesame': ('Sesame Seeds', 'Cash Crops'),
-        'cotton': ('Cotton', 'Cash Crops'),
-        'coffee': ('Coffee Beans', 'Cash Crops')
+        'cocoa': ('Cocoa Beans', 'Cash Crops')
     }
     
     # Find product in voice text
@@ -298,15 +131,13 @@ def parse_voice_ad_input(voice_text):
             parsed_data['category'] = category
             break
     
-    # Extract price using multiple patterns
+    # Extract price using regex
     price_patterns = [
         r'(\d+(?:,\d+)*)\s*naira',
         r'₦\s*(\d+(?:,\d+)*)',
         r'(\d+(?:,\d+)*)\s*ngn',
         r'for\s+(\d+(?:,\d+)*)',
-        r'at\s+(\d+(?:,\d+)*)',
-        r'(\d+(?:,\d+)*)\s*thousand',
-        r'(\d+(?:,\d+)*)\s*k\b'
+        r'at\s+(\d+(?:,\d+)*)'
     ]
     
     for pattern in price_patterns:
@@ -314,43 +145,25 @@ def parse_voice_ad_input(voice_text):
         if match:
             price_str = match.group(1).replace(',', '')
             try:
-                price = float(price_str)
-                # Handle 'k' or 'thousand' multiplier
-                if 'thousand' in voice_lower or 'k' in voice_lower:
-                    if price < 1000:  # Assume it needs multiplication
-                        price *= 1000
-                parsed_data['price'] = price
+                parsed_data['price'] = float(price_str)
                 break
             except:
                 continue
     
-    # Extract location - expanded list of Nigerian locations
-    nigerian_locations = [
+    # Extract location
+    nigerian_states = [
         'lagos', 'kano', 'ogun', 'ibadan', 'abuja', 'kaduna', 'port harcourt',
         'benin', 'jos', 'maiduguri', 'zaria', 'aba', 'ilorin', 'onitsha',
         'warri', 'okene', 'calabar', 'uyo', 'makurdi', 'bauchi', 'gombe',
         'yola', 'minna', 'sokoto', 'katsina', 'kebbi', 'birnin kebbi',
         'dutse', 'damaturu', 'gusau', 'jalingo', 'lafia', 'lokoja',
         'abakaliki', 'umuahia', 'owerri', 'abeokuta', 'akure', 'ado ekiti',
-        'osogbo', 'enugu', 'awka', 'asaba', 'yenagoa', 'oshogbo'
+        'ilorin', 'osogbo', 'ibadan', 'enugu', 'awka', 'asaba', 'yenagoa'
     ]
     
-    for location in nigerian_locations:
-        if location in voice_lower:
-            parsed_data['location'] = location.title()
-            break
-    
-    # Extract contact information if mentioned
-    phone_patterns = [
-        r'(\d{4}[-\s]?\d{3}[-\s]?\d{4})',  # Nigerian phone format
-        r'(080\d{8}|081\d{8}|070\d{8}|090\d{8})',  # Common Nigerian prefixes
-        r'(\+234\d{10})'  # International format
-    ]
-    
-    for pattern in phone_patterns:
-        match = re.search(pattern, voice_text)
-        if match:
-            parsed_data['contact_info'] = match.group(1)
+    for state in nigerian_states:
+        if state in voice_lower:
+            parsed_data['location'] = state.title()
             break
     
     # Generate description based on extracted info
@@ -370,55 +183,58 @@ def parse_voice_ad_input(voice_text):
     if 'location' not in parsed_data:
         parsed_data['location'] = "Nigeria"
     
-    if 'contact_info' not in parsed_data:
-        parsed_data['contact_info'] = "Contact seller for details"
-    
-    return parsed_data
-
 def process_voice_command(voice_text):
-    """Process voice command using enhanced NLP"""
+    """Process voice command using basic NLP"""
     voice_lower = voice_text.lower()
     
-    # Search commands with more variations
-    search_keywords = ['search', 'find', 'look for', 'show me', 'where can i find', 'i need', 'looking for']
-    sell_keywords = ['sell', 'post', 'advertise', 'upload', 'i want to sell', 'selling', 'i have']
-    
-    # Check for search intent
-    if any(keyword in voice_lower for keyword in search_keywords):
-        categories = {
-            'rice': 'Grains', 'yam': 'Tubers', 'cassava': 'Tubers', 
-            'maize': 'Cereals', 'corn': 'Cereals', 'tomato': 'Vegetables',
-            'pepper': 'Vegetables', 'beans': 'Grains', 'plantain': 'Vegetables',
-            'cocoa': 'Cash Crops', 'coffee': 'Cash Crops', 'cotton': 'Cash Crops',
-            'millet': 'Grains', 'sorghum': 'Cereals', 'groundnut': 'Cash Crops'
-        }
-        
+    # Search commands
+    if any(word in voice_lower for word in ['search', 'find', 'look for', 'show me']):
+        categories = ['rice', 'yam', 'cassava', 'maize', 'tomato', 'pepper', 'beans', 'plantain']
         found_category = None
-        found_product = None
-        for product, category in categories.items():
-            if product in voice_lower:
-                found_category = category
-                found_product = product
+        for cat in categories:
+            if cat in voice_lower:
+                found_category = cat
                 break
         
         return {
             'intent': 'search',
             'category': found_category,
-            'product': found_product,
             'query': voice_text
         }
     
-    # Check for sell/post intent
-    elif any(keyword in voice_lower for keyword in sell_keywords):
+    # Post ad commands
+    elif any(word in voice_lower for word in ['sell', 'post', 'advertise', 'upload']):
         return {
             'intent': 'post_ad',
             'query': voice_text
         }
     
-    # Check for price inquiry
-    elif any(word in voice_lower for word in ['price', 'cost', 'how much', 'rate']):
+    return {
+        'intent': 'unknown',
+        'query': voice_text
+    }
+    """Process voice command using basic NLP"""
+    voice_lower = voice_text.lower()
+    
+    # Search commands
+    if any(word in voice_lower for word in ['search', 'find', 'look for', 'show me']):
+        categories = ['rice', 'yam', 'cassava', 'maize', 'tomato', 'pepper', 'beans', 'plantain']
+        found_category = None
+        for cat in categories:
+            if cat in voice_lower:
+                found_category = cat
+                break
+        
         return {
-            'intent': 'price_inquiry',
+            'intent': 'search',
+            'category': found_category,
+            'query': voice_text
+        }
+    
+    # Post ad commands
+    elif any(word in voice_lower for word in ['sell', 'post', 'advertise', 'upload']):
+        return {
+            'intent': 'post_ad',
             'query': voice_text
         }
     
@@ -631,38 +447,10 @@ def render_hero_section():
     st.markdown("### 🎤 Voice Search")
     
     # Try to use real voice recognition
-    if use_real_voice_recognition():
-        st.success("✅ Voice recognition is available!")
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.info("Click the button and say something like: 'Find rice in Lagos' or 'Show me yam from Kano'")
-        with col2:
-            if st.button("🎤 Start Voice Search", key="voice_search_real"):
-                voice_assistant = VoiceAssistant()
-                with st.spinner("🎤 Listening for search query..."):
-                    voice_query = voice_assistant.listen_for_speech(timeout=8, phrase_time_limit=15)
-                
-                if voice_query and voice_query != "Voice recognition not available":
-                    command = process_voice_command(voice_query)
-                    if command['intent'] == 'search':
-                        category_filter = command.get('category', '')
-                        product = command.get('product', '')
-                        search_term = product if product else voice_query
-                        
-                        ads = search_ads(search_term, category_filter)
-                        st.session_state['search_results'] = ads
-                        st.session_state['search_performed'] = True
-                        st.success(f"🎤 Voice search completed for: {search_term}")
-                        st.rerun()
-                    else:
-                        st.warning("Please use search commands like 'find rice' or 'show me yam'")
-                else:
-                    st.error("❌ Could not process voice input. Please try again.")
-    else:
+    if not use_real_voice_recognition():
         # Fallback to demo mode if voice recognition not available
         st.markdown("#### 🎤 Voice Search (Demo Mode)")
-        st.warning("⚠️ Real voice recognition not available. Install packages: `pip install speechrecognition pyaudio gtts`")
+        st.warning("⚠️ Real voice recognition not available. Install packages: `pip install speechrecognition pyaudio pyttsx3`")
         
         voice_command = simulate_voice_recognition()
         
@@ -673,12 +461,11 @@ def render_hero_section():
             if st.button("🎤 Process Demo Command", key="demo_voice_btn"):
                 command = process_voice_command(voice_command)
                 if command['intent'] == 'search':
-                    query = command.get('product', command.get('category', ''))
+                    query = command.get('category', '')
                     ads = search_ads(query)
                     st.session_state['search_results'] = ads
                     st.session_state['search_performed'] = True
                     st.success(f"Demo voice search for: {query}")
-                    st.rerun()
     
     # Display search results if any
     if st.session_state.get('search_performed', False):
@@ -882,15 +669,6 @@ def render_sidebar():
     st.sidebar.metric("Active Ads", total_ads)
     st.sidebar.metric("Categories", "8")
     st.sidebar.metric("States Covered", "36")
-    
-    # Voice features status
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🎤 Voice Features")
-    if use_real_voice_recognition():
-        st.sidebar.success("✅ Voice recognition active")
-    else:
-        st.sidebar.warning("⚠️ Voice features in demo mode")
-        st.sidebar.info("To enable full voice features, install:\n`pip install speechrecognition pyaudio gtts`")
 
 # Page components
 def home_page():
@@ -982,17 +760,16 @@ def post_ad_page():
                 st.markdown("**Sample voice commands:**")
                 st.markdown("""
                 - "I want to sell rice from Kano for 25000 naira"
-                - "Selling fresh yam from Ogun state at 15000 naira"  
+                - "Selling fresh yam from Ogun state at 15000 naira"
                 - "I have plantain for sale from Ibadan at 8000 naira"
-                - "Fresh tomatoes available from Lagos for 5 thousand naira"
                 """)
             
             with col2:
                 if st.button("🎤 Start Voice Input", key="voice_post_btn", use_container_width=True):
                     with st.spinner("🎤 Listening for your advertisement..."):
-                        voice_text = voice_assistant.listen_for_speech(timeout=10, phrase_time_limit=30)
+                        voice_text = voice_assistant.listen_for_speech()
                     
-                    if voice_text and voice_text != "Voice recognition not available":
+                    if voice_text and not any(word in voice_text.lower() for word in ['error', 'timeout', 'not available']):
                         st.success(f"✅ Voice input received: '{voice_text}'")
                         
                         # Parse the voice input to extract product details
@@ -1004,25 +781,19 @@ def post_ad_page():
                         
                         # Provide text-to-speech feedback
                         feedback = f"I understood you want to sell {parsed_data.get('title', 'a product')}. Please review the auto-filled form below."
-                        audio_bytes = voice_assistant.text_to_speech(feedback)
-                        if audio_bytes:
-                            st.audio(audio_bytes, format='audio/mp3')
+                        voice_assistant.text_to_speech(feedback)
                         
                         st.info("📝 Form has been auto-filled based on your voice input. Please review and submit.")
-                    else:
-                        st.error("❌ Could not process voice input. Please try again.")
         else:
             # Fallback to demo mode
             st.warning("⚠️ Voice recognition not available. Using demo mode.")
-            st.info("Install required packages: `pip install speechrecognition pyaudio gtts`")
+            st.info("Install required packages: `pip install speechrecognition pyaudio pyttsx3`")
             
             voice_commands = [
                 "I want to sell fresh tomatoes from Lagos for 5000 naira per basket",
                 "Selling yellow rice 50kg bags from Kano for 25000 naira",
                 "Fresh yam tubers available from Ogun state at 15000 naira",
-                "Plantain bunches for sale from Ibadan at 8000 naira per bunch",
-                "Quality maize available from Kaduna for 20 thousand naira",
-                "Fresh cassava from Oyo state selling at 12000 naira"
+                "Plantain bunches for sale from Ibadan at 8000 naira per bunch"
             ]
             
             selected_voice = st.selectbox("Select Demo Voice Command", voice_commands)
@@ -1073,14 +844,12 @@ def post_ad_page():
         with col2:
             description = st.text_area(
                 "Description", 
-                value=st.session_state.get('voice_description', ''),
                 placeholder="Describe your product in detail...",
                 height=100
             )
             
             contact_info = st.text_input(
                 "Contact Information *", 
-                value=st.session_state.get('voice_contact_info', ''),
                 placeholder="Phone number, email, or WhatsApp"
             )
             
@@ -1163,9 +932,7 @@ def post_ad_page():
                     st.balloons()
                     
                     # Clear voice session data
-                    voice_keys = ['voice_title', 'voice_category', 'voice_price', 
-                                 'voice_location', 'voice_description', 'voice_contact_info']
-                    for key in voice_keys:
+                    for key in ['voice_title', 'voice_category', 'voice_price', 'voice_location']:
                         if key in st.session_state:
                             del st.session_state[key]
                     
