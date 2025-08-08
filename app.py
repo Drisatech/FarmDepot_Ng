@@ -1,4 +1,3 @@
-
 import streamlit as st
 import sqlite3
 import hashlib
@@ -9,6 +8,14 @@ from PIL import Image
 import io
 import json
 import pandas as pd
+
+# Try to import voice recognition dependencies
+try:
+    import speech_recognition as sr
+    import pyttsx3
+    VOICE_AVAILABLE = True
+except ImportError:
+    VOICE_AVAILABLE = False
 
 # Page configuration
 st.set_page_config(
@@ -90,6 +97,91 @@ def init_database():
 def hash_password(password):
     """Hash password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+def use_real_voice_recognition():
+    """Check if real voice recognition is available"""
+    return VOICE_AVAILABLE
+
+class VoiceAssistant:
+    """Voice Assistant for FARMDEPOT_NG"""
+    
+    def __init__(self):
+        self.available = VOICE_AVAILABLE
+        if self.available:
+            self._initialize_components()
+    
+    def _initialize_components(self):
+        """Initialize voice recognition and text-to-speech components"""
+        try:
+            self.recognizer = sr.Recognizer()
+            self.microphone = sr.Microphone()
+            
+            # Initialize text-to-speech
+            self.tts_engine = pyttsx3.init()
+            
+            # Configure TTS settings
+            voices = self.tts_engine.getProperty('voices')
+            if voices:
+                # Try to set a female voice if available
+                for voice in voices:
+                    if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
+                        self.tts_engine.setProperty('voice', voice.id)
+                        break
+            
+            self.tts_engine.setProperty('rate', 150)  # Speech rate
+            self.tts_engine.setProperty('volume', 0.8)  # Volume level
+            
+            # Adjust for ambient noise
+            with self.microphone as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                
+        except Exception as e:
+            st.error(f"Error initializing voice components: {str(e)}")
+            self.available = False
+    
+    def listen_for_speech(self, timeout=5, phrase_time_limit=10):
+        """Listen for speech input and convert to text"""
+        if not self.available:
+            return "Voice recognition not available. Please install: pip install speechrecognition pyaudio pyttsx3"
+        
+        try:
+            with self.microphone as source:
+                st.info("🎤 Listening... Please speak now!")
+                
+                # Listen for audio input
+                audio = self.recognizer.listen(
+                    source, 
+                    timeout=timeout, 
+                    phrase_time_limit=phrase_time_limit
+                )
+                
+                st.info("🔄 Processing your speech...")
+                
+                # Recognize speech using Google Speech Recognition
+                text = self.recognizer.recognize_google(audio)
+                return text.lower()
+                
+        except sr.WaitTimeoutError:
+            return "Timeout: No speech detected. Please try again."
+        except sr.UnknownValueError:
+            return "Could not understand audio. Please speak clearly and try again."
+        except sr.RequestError as e:
+            return f"Error with speech recognition service: {str(e)}"
+        except Exception as e:
+            return f"An error occurred: {str(e)}"
+    
+    def text_to_speech(self, text):
+        """Convert text to speech"""
+        if not self.available:
+            return False
+        
+        try:
+            self.tts_engine.say(text)
+            self.tts_engine.runAndWait()
+            return True
+        except Exception as e:
+            st.error(f"Error with text-to-speech: {str(e)}")
+            return False
 
 # Voice Assistant Placeholder (simplified)
 def simulate_voice_recognition():
@@ -183,36 +275,9 @@ def parse_voice_ad_input(voice_text):
     if 'location' not in parsed_data:
         parsed_data['location'] = "Nigeria"
     
+    return parsed_data
+
 def process_voice_command(voice_text):
-    """Process voice command using basic NLP"""
-    voice_lower = voice_text.lower()
-    
-    # Search commands
-    if any(word in voice_lower for word in ['search', 'find', 'look for', 'show me']):
-        categories = ['rice', 'yam', 'cassava', 'maize', 'tomato', 'pepper', 'beans', 'plantain']
-        found_category = None
-        for cat in categories:
-            if cat in voice_lower:
-                found_category = cat
-                break
-        
-        return {
-            'intent': 'search',
-            'category': found_category,
-            'query': voice_text
-        }
-    
-    # Post ad commands
-    elif any(word in voice_lower for word in ['sell', 'post', 'advertise', 'upload']):
-        return {
-            'intent': 'post_ad',
-            'query': voice_text
-        }
-    
-    return {
-        'intent': 'unknown',
-        'query': voice_text
-    }
     """Process voice command using basic NLP"""
     voice_lower = voice_text.lower()
     
@@ -443,14 +508,62 @@ def render_hero_section():
             else:
                 st.warning("Please enter search criteria")
     
-    # Voice search - try real voice first, fallback to demo
+    # Voice search section
     st.markdown("### 🎤 Voice Search")
     
-    # Try to use real voice recognition
-    if not use_real_voice_recognition():
-        # Fallback to demo mode if voice recognition not available
-        st.markdown("#### 🎤 Voice Search (Demo Mode)")
-        st.warning("⚠️ Real voice recognition not available. Install packages: `pip install speechrecognition pyaudio pyttsx3`")
+    # Initialize voice assistant
+    voice_assistant = VoiceAssistant()
+    
+    if voice_assistant.available:
+        st.success("✅ Voice recognition is available!")
+        st.info("📝 **Instructions:** Say something like 'Search for rice in Lagos' or 'Find yam in Kano'")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.markdown("**Sample voice commands:**")
+            st.markdown("""
+            - "Search for rice in Lagos"
+            - "Find yam in Kano" 
+            - "Show me tomatoes"
+            - "Look for plantain"
+            - "Search for maize"
+            """)
+        
+        with col2:
+            if st.button("🎤 Start Voice Search", key="real_voice_btn", use_container_width=True):
+                with st.spinner("🎤 Listening for your search query..."):
+                    voice_text = voice_assistant.listen_for_speech()
+                
+                if voice_text and not any(word in voice_text.lower() for word in ['error', 'timeout', 'could not']):
+                    st.success(f"✅ Voice input received: '{voice_text}'")
+                    
+                    # Process the voice command
+                    command = process_voice_command(voice_text)
+                    
+                    if command and command['intent'] == 'search':
+                        query = command.get('category', voice_text)
+                        ads = search_ads(query)
+                        st.session_state['search_results'] = ads
+                        st.session_state['search_performed'] = True
+                        
+                        # Provide voice feedback
+                        if ads:
+                            feedback = f"Found {len(ads)} products matching your search."
+                            voice_assistant.text_to_speech(feedback)
+                            st.success(feedback)
+                        else:
+                            feedback = "No products found. Try a different search term."
+                            voice_assistant.text_to_speech(feedback)
+                            st.info(feedback)
+                    else:
+                        st.warning("Could not understand the search command. Please try again.")
+                else:
+                    st.error(f"❌ {voice_text}")
+    else:
+        # Fallback to demo mode
+        st.warning("⚠️ Voice recognition not available. Using demo mode.")
+        st.info("Install required packages: `pip install speechrecognition pyaudio pyttsx3`")
         
         voice_command = simulate_voice_recognition()
         
@@ -845,7 +958,8 @@ def post_ad_page():
             description = st.text_area(
                 "Description", 
                 placeholder="Describe your product in detail...",
-                height=100
+                height=100,
+                value=st.session_state.get('voice_description', '')
             )
             
             contact_info = st.text_input(
@@ -932,7 +1046,7 @@ def post_ad_page():
                     st.balloons()
                     
                     # Clear voice session data
-                    for key in ['voice_title', 'voice_category', 'voice_price', 'voice_location']:
+                    for key in ['voice_title', 'voice_category', 'voice_price', 'voice_location', 'voice_description']:
                         if key in st.session_state:
                             del st.session_state[key]
                     
